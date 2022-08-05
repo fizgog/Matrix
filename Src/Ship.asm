@@ -21,14 +21,14 @@
 ;  0 - $80 $00 : centre top
 
 ; Ship Explosion Arrays
-.explosionXPosArrayControl
-EQUB    $80,$80,$01,$01,$00,$01,$00,$80
+;.explosionXPosArrayControl
+;EQUB    $80,$80,$01,$01,$00,$01,$00,$80
 
-.explosionYPosArrayControl
-EQUB    $00,$01,$00,$01,$01,$80,$80,$80
+;.explosionYPosArrayControl
+;EQUB    $00,$01,$00,$01,$01,$80,$80,$80
 
-.shipExplosionAnimation 
-EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
+;.shipExplosionAnimation 
+;EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
 
 ;-------------------------------------------------------------------------
 ; MaterializeShip
@@ -38,19 +38,103 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
 ;-------------------------------------------------------------------------
 .MaterializeShip
 {
-    ; TODO? C64 implodes ship on start, but VIC 20 doesn't
-
-    LDA #SHIP
-    STA currentCharacter
     LDA #SHIP_MAX_Y
-    STA currentYPosition
     STA shipYPosition
     
     LDA #SHIP_START_X
-    STA currentXPosition
     STA shipXPosition
+    
+    LDA #$08
+    STA temp3
+
+.ShipMaterializationLoop
+
+    LDA gridCharacter
+    STA currentCharacter
+  
+    LDA shipYPosition
+    SEC
+    SBC temp3
+    STA currentYPosition
+    
+    LDA shipXPosition
+    SEC
+    SBC temp3
+    STA currentXPosition
     JSR PlotCharSprite
+
+    LDA shipXPosition
+    CLC
+    ADC temp3
+    STA currentXPosition
+    JSR PlotCharSprite
+
+    INC currentYPosition
+    DEC currentXPosition
+    LDA #HALF_RIGHT
+    STA currentCharacter
+    JSR PlotCharSpriteNoBlack
+
+    LDA shipXPosition
+    SEC
+    SBC temp3
+    STA currentXPosition
+    INC currentXPosition
+    LDA #HALF_LEFT
+    STA currentCharacter
+    JSR PlotCharSpriteNoBlack
+
+    LDA #$04
+    JSR vsync_delay
+
+    DEC temp3
+    BNE ShipMaterializationLoop
+
+    LDA #SHIP
+    STA currentCharacter
+    JSR PlotCharSprite
+
+    LDX #ShipExplosionSound MOD 256 
+    LDY #ShipExplosionSound DIV 256 
+    JSR PlaySound
+
+    LDA #$03
+    STA temp4
+
+.loop
+    LDA #0
+    STA backColour
+    LDA #3
+    STA foreColour
+    
+    LDX #4
+    LDY #3
+    JSR DefineColour
+    JSR AnimateGrid
+    JSR AnimateGrid
+
+    LDA #$02
+    JSR vsync_delay
+
+    LDA #0
+    STA backColour
+    LDA #4
+    STA foreColour
+    
+    LDX #4
+    LDY #4
+    JSR DefineColour
+    JSR AnimateGrid
+    JSR AnimateGrid
+    
+    LDA #$02
+    JSR vsync_delay
+
+    DEC temp4
+    LDA temp4
+    BNE loop
     RTS
+    ; Return
 }
 
 ;-------------------------------------------------------------------------
@@ -76,9 +160,10 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
     BIT joystickFlag
     BPL over
     JMP ShipKeyboard
+    ; Return
 .over
     JMP ShipJoystick
-    RTS
+    ; Return    
 }
 
 ;-------------------------------------------------------------------------
@@ -151,8 +236,7 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
     BNE ship_pod_check
 
     ; one bullet at a time
-    LDA bulletType;bulletYPosition
-    ;CMP #$FF
+    LDA bulletType
     BNE ship_update
     JSR FireBullet
 
@@ -170,7 +254,7 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
     
     LDA #SHIP
     STA currentCharacter
-    JSR PlotCharSprite
+    JSR PlotCharSpriteNoBlack
 
     LDA currentXPosition
     STA shipXPosition
@@ -178,7 +262,8 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
     STA shipYPosition
     
 .ship_exit
-    RTS
+    JMP CheckShipBonus
+    ; Return
 }
 
 ;-------------------------------------------------------------------------
@@ -219,7 +304,7 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
     BCS ship_up
 
     LDA currentYPosition
-    CMP #GRID_MAX_Y
+    CMP #SHIP_MAX_Y
     BEQ ship_exit
     JSR EraseShip
     INC currentYPosition
@@ -242,8 +327,7 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
     BCC ship_pod_check
 
     ; one bullet at a time
-    LDA bulletType;bulletYPosition
-    ;CMP #$FF
+    LDA bulletType
     BNE ship_update
     JSR FireBullet
 
@@ -261,7 +345,7 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
     
     LDA #SHIP
     STA currentCharacter
-    JSR PlotCharSprite
+    JSR PlotCharSpriteNoBlack
 
     LDA currentXPosition
     STA shipXPosition
@@ -269,6 +353,29 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
     STA shipYPosition    
 
 .ship_exit
+    JMP CheckShipBonus
+    ; Return
+}
+
+.CheckShipBonus
+{
+    ; Mystery Bonus 3
+    LDA shipXPosition
+    CMP #$03
+    BEQ no_mystery_bonus_3
+    CMP #$11
+    BPL no_mystery_bonus_3
+    
+    RTS
+
+    ; Clear most of the bonus bits, as punishment for moving to the
+    ; extreme left of the grid.
+.no_mystery_bonus_3   
+    LDA bonusBits
+    AND #$FB
+    STA bonusBits
+
+.exit
     RTS
 }
 
@@ -292,8 +399,11 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
     DEC bulletYPosition
 
     ; Bullet Sound
-    LDX #FireBulletSound MOD 256
-    LDY #FireBulletSound DIV 256
+    LDX #FireBulletSound1 MOD 256
+    LDY #FireBulletSound1 DIV 256
+    JSR PlaySound
+    LDX #FireBulletSound2 MOD 256
+    LDY #FireBulletSound2 DIV 256
     JSR PlaySound
 
     LDA #BULLET_UP
@@ -313,7 +423,6 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
     LDA gridCharacter ; #GRID
     STA currentCharacter
     JSR PlotCharSprite
-
     RTS
 }
 
@@ -371,6 +480,9 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
     AND #$F0                            ; %11110000        
     BEQ standard_bullet
   
+    ;LDA bulletType
+    ;JSR Debug1
+
     JMP DrawDeflectedBullet
 
 .standard_bullet
@@ -379,7 +491,6 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
     DEC currentYPosition
     LDA currentYPosition   
 
-    ; First row of grid so remove bullet as you cannot hit anything ?
     CMP #GRID_MIN_Y-1
     BNE not_top
 
@@ -395,7 +506,7 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
 
 .draw_bullet
   
-    JMP PlotCharSprite
+    JMP PlotCharSpriteNoBlack
 
 .bullet_exit
     RTS
@@ -423,7 +534,7 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
 
     CMP #DEFLECTOR1
     BCC not_deflexor            ; < #DEFLEXOR1
-    CMP #DEFLECTOR3
+    CMP #DEFLECTOR3+1
     BCS not_deflexor            ; >= DEFLEXOR+1
     
     JMP DeflexorCollision      
@@ -436,7 +547,7 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
     CMP #CAMELOID_LEFT+1
     BCS not_cameloid
    
-    ;JSR CameloidCollision
+    JSR CameloidCollision
   
     LDA #$00
     STA bulletType
@@ -522,47 +633,45 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
 }
 
 ;-------------------------------------------------------------------------
-; CheckPodCollision
+; ExplodeShip
 ;-------------------------------------------------------------------------
 ; On entry  :
 ; On exit   : 
 ;-------------------------------------------------------------------------
 .ExplodeShip
 {
-    ;LDA shipXPosition
-    ;STA currentXPosition
-    ;LDA shipYPosition
-    ;STA currentYPosition
+    ; Reset Red colour
+    LDX #1
+    LDY #1
+    JSR DefineColour
+    
+    LDX #ShipExplosionSound MOD 256
+    LDY #ShipExplosionSound DIV 256
+    JSR PlaySound
 
-    ;AND #$3                     ; %00000011
-    ;TAX
-    ;LDA shipExplosionAnimation,X
-    ;STA currentCharacter
-    ;LDA currentYPosition
-    ;AND #$07
-    ;STA chrFontColour;???
+    LDA #$05
+    STA temp4
 
+.loop
+    LDX #0
+    LDY #4
+    JSR DefineColour
+ 
+    LDA #$02
+    JSR vsync_delay
 
-    ; Initiliase explosion array
-    ;JSR InitExplosionArray
+    LDX #0
+    LDY #0
+    JSR DefineColour
+    
+    LDA #$02
+    JSR vsync_delay
 
-    ;LDX #ShipExplosionSound MOD 256
-    ;LDY #ShipExplosionSound DIV 256
-    ;JSR PlaySound
+    DEC temp4
+    LDA temp4
+    BNE loop
 
-    ; Animation effect is different for Matrix
-    ; Loop 20 times for animation effect
-    ;LDY #$14
-;.loop    
-;    JSR AnimateShipExplosion
-
-;    STY saveY
-;    LDA #$05
-;    JSR vsync_delay
-;    LDY saveY
-
-;    DEY
-;    BPL loop
+    JSR AnimateShipExplosion
 
     DEC shipLives
     BEQ finish
@@ -584,145 +693,131 @@ EQUB EXPLOSION1,EXPLOSION2,EXPLOSION3,$FF
 ;-------------------------------------------------------------------------
 .AnimateShipExplosion
 {
-    INC currentExplosionCharacter
-    LDA currentExplosionCharacter
-    CMP #EXPLOSION3 + 1
-    BNE next_animation
+    LDA #$0F
+    STA temp4
 
-    ; Reset animation
-    LDA #EXPLOSION1
-    STA currentExplosionCharacter
+.b956A
+    LDA #$0F
+    SEC
+    SBC temp4 
+    STA temp3
 
-.next_animation
+    LDA #$07
+    STA temp2
 
-    LDX #$07
- .loop_eight_explosion
+    LDA #$04
+    JSR vsync_delay
 
-    LDA explosionXPosArray,X
-    STA currentXPosition
-    LDA explosionYPosArray,X
-    STA currentYPosition
-    LDA gridCharacter ; #GRID
+.b957F   
+    JSR DrawCharacterInShipExplosion
+
+    LDA temp3
+    BEQ b959F
+    DEC temp3
+    BEQ b958E
+    LDA temp2
+    BNE b957F
+
+.b958E
+    LDA gridCharacter
     STA currentCharacter
-    JSR PlotCharSprite
-
-    LDA explosionXPosArrayControl,X
-    BEQ over2   ; X stays the same  
+    JSR DrawEightExplosion
     
-    CMP #$80    ; %10000000
-    BEQ over3   ; Decrements x position
-
-    INC explosionXPosArray,X
-
-.over2
-    INC explosionXPosArray,X    
-
-.over3
-    JSR UpdateExplosionXPosArray
-
-    LDA explosionYPosArrayControl,X
-    BEQ over4   ; Y stays the same
-
-    CMP #$80    ; %10000000
-    BEQ over5   ; Decrement y position
-
-    INC explosionYPosArray,X
-
-.over4    
-    INC explosionYPosArray,X
-
-.over5
-    JSR UpdateExplosionYPosArray
-
-    LDA explosionXPosArray,X
-    STA currentXPosition
-    LDA explosionYPosArray,X
-    STA currentYPosition
-    LDA currentExplosionCharacter
-    STA currentCharacter
-    JSR PlotCharSprite
-    
-    DEX
-    BPL loop_eight_explosion
+.b959F   
+    DEC temp4
+    BNE b956A   
     RTS
 }
 
-;-------------------------------------------------------------------------
-; InitExplosionArray
-;-------------------------------------------------------------------------
-; Put ships current x and y coords into each explosion x and y array
-;-------------------------------------------------------------------------
-; On entry  :
-; On exit   : 
-;-------------------------------------------------------------------------
-.InitExplosionArray
+.DrawCharacterInShipExplosion
 {
-    LDX #$07
-.loop
-    LDA shipXPosition
-    STA explosionXPosArray,X
-    LDA shipYPosition
-    STA explosionYPosArray,X
-    DEX
-    BPL loop
+    LDA temp2                   
+    AND #$07
+    TAY
+    LDA ColourEffects,Y
+    STA chrFontColour
 
+    LDA #49
+    STA currentCharacter
+
+    DEC temp2
+    ; Falls through
+}
+
+.DrawEightExplosion
+{
     LDA shipXPosition
+    SEC
+    SBC temp3
     STA currentXPosition
     LDA shipYPosition
     STA currentYPosition
-    
-    LDA #EXPLOSION1
-    STA currentExplosionCharacter
-    STA currentCharacter
-        
-    JSR PlotCharSprite
-    RTS
-}
 
-;-------------------------------------------------------------------------
-; UpdateExplosionXPosArray
-;-------------------------------------------------------------------------
-; On entry  : X contains postion into Explosion XPOS array
-; On exit   : 
-;-------------------------------------------------------------------------
-.UpdateExplosionXPosArray
-{
-    DEC explosionXPosArray,X
-    LDA explosionXPosArray,X
-    BEQ over    ; xpos 0
-    AND #$1F    ; %00011111
-    CMP #$14    ; xpos 20
-    BPL over
+    JSR DrawSingleExplosion           ; centre left explosion
 
-    STA explosionXPosArray,X
-    RTS
-.over
-    LDA shipXPosition
-    STA explosionXPosArray,X
-    RTS
-}
-
-;-------------------------------------------------------------------------
-; UpdateExplosionYPosArray
-;-------------------------------------------------------------------------
-; On entry  : X contains postion into Explosion YPOS array
-; On exit   : 
-;-------------------------------------------------------------------------
-.UpdateExplosionYPosArray
-{
-    DEC explosionYPosArray,X
-    LDA explosionYPosArray,X
-    AND #$1F    ; %00111111
-    CMP #$02    ; ypos 2
-    BEQ over
-    CMP #$1D    ; ypos 29   
-    BPL over
-
-    STA explosionYPosArray,X
-    RTS
-.over
     LDA shipYPosition
-    STA explosionYPosArray,X
+    CLC
+    ADC temp3
+    STA currentYPosition
+    JSR DrawSingleExplosion           ; bottom left explosion
+
+    LDA shipYPosition
+    SEC
+    SBC temp3
+    STA currentYPosition
+    JSR DrawSingleExplosion           ; top left explosion
+
+    LDA shipXPosition
+    STA currentXPosition
+    JSR DrawSingleExplosion           ; centre top explosion
+
+    LDA shipXPosition
+    CLC
+    ADC temp3
+    STA currentXPosition
+    JSR DrawSingleExplosion           ; top right explosion
+
+    LDA shipYPosition
+    STA currentYPosition
+    JSR DrawSingleExplosion           ; centre right explosion
+
+    LDA shipYPosition
+    CLC
+    ADC temp3
+    STA currentYPosition
+    JSR DrawSingleExplosion           ; bottom right explosion
+
+    LDA shipXPosition
+    STA currentXPosition
+    ; Fall through
+
+}
+
+.DrawSingleExplosion
+{  
+    LDA currentXPosition
+    CMP #GRID_MIN_X;#$01
+    BMI exit
+    CMP #MAX_X;#$14 ; 21
+    BPL exit
+
+    LDA currentYPosition
+    CMP #GRID_MIN_Y;#$03
+    BMI exit
+    CMP #GRID_MAX_Y;#$1D ; 31
+    BPL exit
+
+    LDA currentCharacter
+    CMP #49
+    BEQ use_font
+
+    JMP PlotCharSprite
+
+.use_font
+    JSR PlotFont
+    LDA #49                 
+    STA currentCharacter    ; Restore currentCharacter
+.exit
     RTS
 }
 
