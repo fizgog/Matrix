@@ -2,32 +2,11 @@
 ; Matrix: Gridrunner 2
 ;-------------------------------------------------------------------------
 ; BBC Conversion Shaun Lindsley
-; Thanks to Jef Minter for producing an excellent game for the VIC20
-
-\ Memory space
-\ &0000-&008F Language workspace            - Can be used
-\ &008F-&00FF - ????
-\ &0100-&01FF 6502 Stack                    - *** Don't use ***
-\ &0200-&02FF OS Workspace                  - *** Don't use ***
-\ &0300-&03FF OS Workspace                  - *** Don't use ***
-
-\ &0400-&04FF Basic workspace               - Can be used
-\ &0500-&05FF Basic workspace               - Can be used
-\ &0600-&06FF String buffer                 - Can be used
-\ &0700-&07FF Line input buffer             - Can be used
-
-\ &0800-&08FF Sound workspace               - *** don't use as sound is required, if I can work out vic and c64 sound ***
-\ &0900-&09BF Envelopes 5-16                - Can be used if we only used enveloped below 5
-
-\ &09C0-&09FF Speech buffer                 - Can be used
-\ &0A00-&0AFF RS423 or Cassette buffer      - Can be used
-\ &0B00-&0BFF SoftKey (Function Keys)       - Can be used
-
-\ &0C00-&0CFF Chacter Defination 128-159    - Can be used
-\ &0D00-&0DFF OS Workspace                  - *** Don't use ***
-\ &0E00-&0EFF 
-\ &0F00-&0FFF
-\ &1000-&10FF
+; Thanks to Jef Minter for producing an excellent game for the VIC20 / C64
+; Special thanks to the following: -
+; Rich-Talbot-Watkins, Tricky and Coeus - Coding advice
+; Rob Hawk - Testing
+; Stardot Community - https://stardot.org.uk
 
 ; Use following for vsync debugging
 ; LDA #&00: STA &FE21 ;white
@@ -38,6 +17,13 @@
 ; LDA #&05: STA &FE21 ;green
 ; LDA #&06: STA &FE21 ;red
 ; LDA #&07: STA &FE21 ;black
+
+\\ Define addresses
+
+NATIVE_ADDR		= &0E00		; address at which code will run
+RELOAD_ADDR		= &1100		; address at which code will load
+
+OFFSET			= RELOAD_ADDR - NATIVE_ADDR
 
 ; Defines
 MAPCHAR '0','9',0
@@ -58,9 +44,7 @@ MAPCHAR 'x',47
 
 MAPCHAR '_',48          ; Matrix Title Line
 
-MAPCHAR '/',49          ; Explosion 1 ?
-MAPCHAR '\',50          ; Explosion 2 ?
-MAPCHAR '(',51          ; Explosion 3 ?
+MAPCHAR '*',49          ; Ship Explosion
 
 OSRDCH = &FFE0
 OSASCI = &FFE3
@@ -88,40 +72,44 @@ LASER_AND_POD_FRAME_RATE    = $0B
 DROID_TIMER                 = $20
 BOMB_FRAME_RATE             = $01
 
-MIN_X               = 0;1    
-MIN_Y               = 0;2
-MAX_X               = 19;20
-MAX_Y               = 31;29
+MIN_X               = 0  
+MIN_Y               = 0
+MAX_X               = 19
+MAX_Y               = 31
 
 GRID_MIN_X          = MIN_X+1
-GRID_MAX_X          = MAX_X;-1
-GRID_MIN_Y          = MIN_Y+3;+1
-GRID_MAX_Y          = MAX_Y-2;-1
+GRID_MAX_X          = MAX_X-1
+GRID_MIN_Y          = MIN_Y+3
+GRID_MAX_Y          = MAX_Y-2
 
-SHIP_MIN_Y          = GRID_MIN_Y+5;MIN_Y+7       ; How far ship can travel up the grid
-SHIP_MAX_Y          = GRID_MAX_Y-1;MAX_Y-1
-SHIP_START_X        = (MAX_X+1) / 2     ; Used for Ship start x position
+SHIP_MIN_Y          = GRID_MIN_Y+5      ; How far ship can travel up the grid
+SHIP_MAX_Y          = GRID_MAX_Y-1
+SHIP_START_X        = (MAX_X) / 2       ; Used for Ship start x position
 
 ZAPPER_LEFT_X       = MIN_X             ; Static
-ZAPPER_LEFT_MIN_X   = MIN_X         ; Left zapper min x pos
+ZAPPER_LEFT_MIN_X   = MIN_X             ; Left zapper min x pos
 ZAPPER_LEFT_MIN_Y   = GRID_MIN_Y
-ZAPPER_LEFT_MAX_Y   = GRID_MAX_Y;MAX_Y-1
+ZAPPER_LEFT_MAX_Y   = GRID_MAX_Y
 
-ZAPPER_BOTM_Y       = GRID_MAX_Y;GRID_MAX_Y+1;MAX_Y         ; Static
-ZAPPER_BOTM_MIN_X   = GRID_MIN_X;MIN_X
-ZAPPER_BOTM_MAX_X   = GRID_MAX_X+1;MAX_X
+ZAPPER_BOTM_Y       = GRID_MAX_Y        ; Static
+ZAPPER_BOTM_MIN_X   = GRID_MIN_X
+ZAPPER_BOTM_MAX_X   = GRID_MAX_X+1
 
-LASER_MAX_X         = GRID_MAX_X;MAX_X
-LASER_MAX_Y         = GRID_MAX_Y;MAX_Y
+LASER_MAX_X         = GRID_MAX_X
+LASER_MAX_Y         = GRID_MAX_Y
 LASER_FIRE_Y        = ZAPPER_BOTM_Y-1
 
-BOMB_MAX_Y          = GRID_MAX_Y ;MAX_Y         ; How far down can the bomb go
+BOMB_MAX_Y          = GRID_MAX_Y        ; How far down can the bomb go
 
 DROID_MIN_X         = GRID_MIN_X-1
 DROID_MIN_Y         = GRID_MIN_Y
-DROID_MAX_X         = GRID_MAX_X+1        ; Currently not used ??
-DROID_MAX_Y         = GRID_MAX_Y-1         ; How far down can the droid go
-;DROIDYR             = MAX_Y-11      ; Droid row restart after getting to end of grid
+DROID_MAX_X         = GRID_MAX_X+1      
+DROID_MAX_Y         = GRID_MAX_Y-1      ; How far down can the droid go
+
+CAMELOID_MIN_X      = GRID_MIN_X-1
+CAMELOID_MIN_Y      = GRID_MIN_Y
+CAMELOID_MAX_X      = GRID_MAX_X+1      
+CAMELOID_MAX_Y      = GRID_MAX_Y-1      
 
 ; Key codes
 keyCodeESCAPE       = &8F           ; Escape
@@ -156,35 +144,33 @@ POD4                = 17    ; 11
 POD5                = 18    ; 12
 POD6                = 19    ; 13
 BOMB_DOWN           = 20    ; 14
+LEADER1             = 21    ; 15
+LEADER2             = 22    ; 16
+LEADER3             = 23    ; 17
+LEADER4             = 24    ; 18
+DROID               = 25    ; 19
+SNITCH_RIGHT1       = 26    ; 1A
+SNITCH_RIGHT2       = 27    ; 1B
+SNITCH_LEFT1        = 28    ; 1C
+SNITCH_LEFT2        = 29    ; 1E
+SNITCH_WAVE1        = 30    ; 1F
+SNITCH_WAVE2        = 31    ; 20
+CAMELOID_RIGHT      = 32    ; 21
+CAMELOID_LEFT       = 33    ; 22
+DEFLECTOR1          = 34    ; 23
+DEFLECTOR2          = 35    ; 24
+DEFLECTOR3          = 36    ; 25
+BONUS1              = 37    ; 26
+BONUS2              = 38    ; 27
 
-EXPLOSION1          = 21 ; 15
-EXPLOSION2          = 22 ; 16
-EXPLOSION3          = 23 ; 17
+HALF_LEFT           = 39    ; 28
+HALF_RIGHT          = 40    ; 29
+MYSTERY             = 41    ; 2A
 
-LEADER1             = 24 ; 18
-LEADER2             = 25 ; 19
-LEADER3             = 26 ; 1A
-LEADER4             = 27 ; 1B
-DROID               = 28 ; 1C
-
-SNITCH_RIGHT1       = 29 ; 1D
-SNITCH_RIGHT2       = 30 ; 1E
-SNITCH_LEFT1        = 31 ; 1F
-SNITCH_LEFT2        = 32 ; 20
-SNITCH_WAVE1        = 33 ; 21
-SNITCH_WAVE2        = 34 ; 22
-
-SOUND_ON            = 35 ; 23
-SOUND_OFF           = 36 ; 24
-PAUSE_ICON          = 37 ; 25
-JOYSTICK_ICON       = 38 ; 26
-CAMELOID_RIGHT      = 39 ; 27
-CAMELOID_LEFT       = 40 ; 28
-DEFLECTOR1          = 41 ; 29
-DEFLECTOR2          = 42 ; 2A
-DEFLECTOR3          = 43 ;
-BONUS1              = 44 ;
-BONUS2              = 45 ;
+SOUND_ON            = 42    ; 2B
+SOUND_OFF           = 43    ; 2C
+PAUSE_ICON          = 44    ; 2D
+JOYSTICK_ICON       = 45    ; 2E
 
 ; Define some zp locations
 ORG 0
@@ -235,6 +221,7 @@ ORG 0
 
 .selectedLevel                  SKIP 1
 
+.chrFontColourIndex             SKIP 1
 .chrFontColour                  SKIP 1
 .chrFontAddr                    SKIP 2 ; (&FFFF)
 .text_addr                      SKIP 2 ; (&FFFF)
@@ -255,7 +242,9 @@ ORG 0
 .gridOldColour                  SKIP 1
 .gridNewColour                  SKIP 1          
 .gridFrameRate                  SKIP 1
-.gridFrameRateMax               SKIP 1   
+.gridFrameRateMax               SKIP 1  
+.foreColour                     SKIP 1
+.backColour                     SKIP 1 
 
 .snitchFrameRate                SKIP 1
 .snitchFrameRateLevel           SKIP 1
@@ -266,79 +255,79 @@ ORG 0
 .temp                           SKIP 1
 .temp2                          SKIP 1
 .temp3                          SKIP 1
-                             
+.temp4                          SKIP 1
+
 .delay_counter1                 SKIP 1
 .delay_counter2                 SKIP 1
                             
 .saveX                          SKIP 1 ; instead of stack
 .saveY                          SKIP 1 ; instead of stack
 .saveA                          SKIP 1 ; instead of stack
-.write_addr                     SKIP 2 ; (&FFFF)
 
+.write_addr                     SKIP 2 ; (&FFFF)
 .source_addr                    SKIP 2 ; (&FFFF)
 .dest_addr                      SKIP 2 ; (&FFFF)
 .blocks_to_copy                 SKIP 1
 .scrolltext_offset              SKIP 1
                             
-
 .deflexorFrameRate              SKIP 1
 .deflexorIndexForLevel          SKIP 1
 .currentDeflexorIndex           SKIP 1
 .animateRedColour               SKIP 1
 
-.cameloidAnimationInteveralForLevel SKIP 1
-.currentCameloidAnimationInterval   SKIP 1
-.originalNoOfDronesInDroidSquadInCurrentLevel SKIP 1
-.cameloidsTimer                 SKIP 1
-.cameloidsLeft                  SKIP 1
-.cameloidsTimerReset            SKIP 1
+.InitialCameloidsRefreshRate    SKIP 1
+.CurrentCameloidsRefreshRate    SKIP 1
+.InitialDroidsInSquad           SKIP 1
+.CurrentCameloidsOnScreen       SKIP 1
+.CameloidsLeftToKill            SKIP 1
+.InitialCameloidsOnScreen       SKIP 1
 .currentCameloidsLeft           SKIP 1
+.currentCameloidsIndex          SKIP 1
 
+.mysteryBonusEarned             SKIP 1
 .bonusBits                      SKIP 1
 
-; Remove one live
-.debugA                         SKIP 1
-.debugX                         SKIP 1
-.debugY                         SKIP 1
-.debugXPos                      SKIP 1
-.debugYPos                      SKIP 1
-.debugChar                      SKIP 1
+.random                         SKIP 1
+
+; Remove following once live
+;.debugA                         SKIP 1
+;.debugX                         SKIP 1
+;.debugY                         SKIP 1
+;.debugXPos                      SKIP 1
+;.debugYPos                      SKIP 1
+;.debugChar                      SKIP 1
+;.debugTemp                      SKIP 1
 
 .end_of_ZP
 
+; Paged aligned arrays
 ORG &0400
 
-; Max 40 pods and/or bombs at each x,y coords use podArray to store
-podArrayXPos = &0400            ; 0400-0427
-podArrayYPos = &0428            ; 0428-0449
-podArrayChar = &0450            ; 0450-0477
+; Pods / bombs Max &28 - 40 decimals
+.podArrayXPos               SKIP &3A    ; 0400-042A
+.podArrayYPos               SKIP &3A
+.podArrayChar               SKIP &3A
 
-; Delfexor array &28
-currentDeflexorXPosArray    = &0480     ; 0480-049F
-currentDeflexorYPosArray    = &04A8     ; 04A0-04BF
-currentDeflexorStatusArray  = &04D0     ; 04C0-04DF
+; Deflexor array &28 -  40 decimal
+.currentDeflexorXPosArray   SKIP &1A    ; 0480-049F
+.currentDeflexorYPosArray   SKIP &1A    ; 04A8-04CF
+.currentDeflexorStatusArray SKIP &1A    ; 04C0-04F7
 
-; max droids is 13 * 3 = 39 = &27
 ORG &0500
-; Droid array 255 bytes $FF could use &55 and fit into 1 page?
-droidXPositionArray         = &0500     ; 0500-05FF
-droidYPositionArray         = &0600     ; 0600-06FF
-droidStatusArray            = &0700     ; 0700-07FF
+; Max Droid &55 - 86 decimal
+.droidXPositionArray        SKIP &55    ; 0500-0554
+.droidYPositionArray        SKIP &55    ; 0555-05A9
+.droidStatusArray           SKIP &55    ; 05AA-05FF
 
-ORG &0A00 
-cameloidsCurrentXPosArray   = &0A00     ; 0A00-0A7F
-cameloidsCurrentYPosArray   = &0A80     ; 0A80-0AFF
-cameloidsColorArray         = &0B00     ; 0B00-0B80
+ORG &0600 
+; Max Cameloids &55 - 86 decimal
+.cameloidXPositionArray     SKIP &55    ; 0600-0654
+.cameloidYPositionArray     SKIP &55    ; 0680-06A9
+.cameloidStatusArray        SKIP &55    ; 06AA-06FF
 
-; Ship explosion array 8 bytes for each x and y coords
-explosionXPosArray          = &B800     ; 04E0-04E7
-explosionYPosArray          = &B810     ; 04F0-04F7
+ORG NATIVE_ADDR
 
-
-ORG &1100
-GUARD &3000
-
-.start
+.START
 
 ;-------------------------------------------------------------------------
 ; Initialise
@@ -385,9 +374,15 @@ GUARD &3000
 ;-------------------------------------------------------------------------
 .TitleScreen
 {
+    ; Reset Red colour
+    LDX #1
+    LDY #1
+    JSR DefineColour
+
     ; Reset level
     LDA #1
-    STA selectedLevel 
+    STA selectedLevel
+    STA random 
 
     ; Reset ship lives
     LDA #5
@@ -403,7 +398,10 @@ GUARD &3000
     LDA #ScrollingText DIV 256 : STA text_addr+1
 
     LDY #0                                          
-    STY scrolltext_offset                           
+    STY scrolltext_offset  
+
+    LDA #$80                ; %10000000 - set bit 7 to 1
+    STA joystickFlag        ; Use BPL if bit 7 is 0                         
 
 .title_screen_loop
 
@@ -432,7 +430,7 @@ GUARD &3000
     JSR isKeyPressed
     BNE Check_key_down
     LDA selectedLevel
-    CMP #$20
+    CMP #$06
     BEQ title_screen_loop
     SED
     ADC #1
@@ -456,14 +454,24 @@ GUARD &3000
 .Check_fire    
     LDX #keyCodeRETURN
     JSR isKeyPressed
-    BNE title_screen_loop
+    BEQ start_game
 
+    JSR isJoystickPressed
+    BCC title_screen_loop
+
+    ;LDA joystickFlag
+    ;EOR #$80
+    LDA #$00
+    STA joystickFlag
+
+.start_game
     ; Reset Score
     LDA #0
     STA score1
     STA score2
     STA score3
     STA score4
+    JSR PrintScore
 
     JSR Cascade
     JSR ResetLevel
@@ -502,10 +510,8 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
 ;-------------------------------------------------------------------------
 .ResetLevel    
 
-    DEC selectedLevel
     JSR InitialiseLevel
-    INC selectedLevel
-
+ 
     LDA #CYAN
     STA chrFontColour
  
@@ -520,11 +526,12 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     JSR DrawDeflexor
 
     ; Drop through to game loop
-
+    
 ;-------------------------------------------------------------------------
 ; MainLoop - Game
 ;-------------------------------------------------------------------------
 .MainLoop
+    
     JSR CheckSpecialKeys
 
     JSR AnimateGrid
@@ -534,11 +541,11 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     JSR UpdateBullet
     JSR UpdateZappers
     JSR AnimateSnitch
-    ;JSR DrawLaser
-    ;JSR UpdateBombs
-    ;JSR UpdatePods
+    JSR DrawLaser
+    JSR UpdateBombs
+    JSR UpdatePods
     
-    ;JSR AnimateCameloid
+    JSR AnimateCameloid
     JSR DrawDroids
     JSR DrawDeflexor
     
@@ -546,19 +553,9 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     JSR vsync_delay
     JSR CheckLevelComplete
 
-    ; Keys function?
-    ; Quit pressed
-    BIT joystickFlag
-    BPL joystick_in_use
-
     LDX #keyCodeESCAPE
     JSR isKeyPressed
     BNE MainLoop
-    RTS
-
-.joystick_in_use
-    JSR isJoystickPressed
-    BCC MainLoop
     RTS
 
 ;-------------------------------------------------------------------------
@@ -629,10 +626,10 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
 {
     JSR ClearScreen
 
-    ; Set colour red back to red
-    LDX #1
-    LDY #1
-    JSR DefineColour
+    ;; Set colour red back to red
+    ;LDX #1
+    ;LDY #1
+    ;JSR DefineColour
 
     LDA #CYAN
     STA chrFontColour
@@ -640,7 +637,7 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     LDX #2
     LDY #5
     LDA #DesignText MOD 256:STA text_addr
-    LDA #DesignerText DIV 256:STA text_addr+1
+    LDA #DesignText DIV 256:STA text_addr+1
     JSR PrintString
 
     LDX #3
@@ -702,11 +699,23 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     LDA noOfDroidSquadsCurrentLevel
     BNE not_complete
     
-    LDA cameloidsLeft
+    LDA CameloidsLeftToKill
     BNE not_complete
     LDA currentCameloidsLeft
     BNE not_complete
 
+    ;JSR FindPod
+    ;CMP #gridCharacter
+    ;BEQ no_mystery_bonus_4
+
+    ; Mystery Bonus 4
+    ; Award a bonus bit for clearing all pods.
+    ;LDA bonusBits
+    ;ORA #$08
+    ;STA bonusBits
+
+.no_mystery_bonus_4    
+ 
     INC selectedLevel
 
     LDA selectedLevel
@@ -733,6 +742,7 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     JSR ZoneCleared
     
     JMP ResetLevel
+    ; Return
 
 .not_complete
     RTS
@@ -778,9 +788,34 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     BNE zone_loop
 
     LDA temp2
+    STA ZoneClearedSound1Pitch
+    STA ZoneClearedSound2Pitch
+    STA ZoneClearedSound3Pitch
+
+    LDX #ZoneClearedSound1 MOD 256 
+    LDY #ZoneClearedSound1 DIV 256 
+    JSR PlaySound
+    LDX #ZoneClearedSound2 MOD 256 
+    LDY #ZoneClearedSound2 DIV 256 
+    JSR PlaySound
+    LDX #ZoneClearedSound3 MOD 256 
+    LDY #ZoneClearedSound3 DIV 256 
+    JSR PlaySound
+
+    LDA temp2
     AND #$C0                    ; %11000000
     CMP #$C0
     BNE zone_colour_loop
+
+    ; Mystery Bonus
+    JSR CalculateMysteryBonus
+
+    LDA mysteryBonusEarned
+    BEQ zone_exit
+    JSR DisplayMysteryBonus
+
+.zone_exit
+    JSR ClearScreen
     RTS
 }
 
@@ -803,8 +838,47 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     LDA #GotYouText DIV 256 : STA text_addr+1
     JSR PrintString 
 
-    LDA #$80
+    LDA #$0F
+    STA temp2
+
+.loop1    
+    
+    LDA #$00
+    STA temp3
+
+.loop2
+    
+    LDA temp3
+    ADC #$08
+    STA temp3
+    STA GenericSoundPitch1
+    STA GenericSoundPitch2
+    STA GenericSoundPitch3
+    
+    LDX #GenericSound1 MOD 256 
+    LDY #GenericSound1 DIV 256 
+    JSR PlaySound
+    LDX #GenericSound2 MOD 256 
+    LDY #GenericSound2 DIV 256 
+    JSR PlaySound
+    LDX #GenericSound3 MOD 256 
+    LDY #GenericSound3 DIV 256 
+    JSR PlaySound
+
+    LDA #$01;80
     JSR vsync_delay
+
+    INC temp3
+    LDA temp3
+    CMP #$32
+    BCC loop2
+
+    DEC temp2
+    LDA temp2
+    BNE loop1
+
+    ;LDA #$80
+    ;JSR vsync_delay
 
     JMP ResetLevel
     ; Return
@@ -823,16 +897,61 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     LDA #YELLOW
     STA chrFontColour
 
-    LDX #05
+    LDX #06
     LDY #10
     LDA #GameOverText MOD 256:STA text_addr
     LDA #GameOverText DIV 256:STA text_addr+1
     JSR PrintString 
 
     JSR CheckHighScore
+ 
+    LDA #$00
+    STA chrFontColourIndex
+   
+    LDA #$0F
+    STA temp2
+
+.loop1
+    LDA #$00
+    STA temp3
+
+    LDA temp4
+    BEQ not_highscore
+
+    JSR AnimatedHighScore
+
+.not_highscore
+
+.loop2
+    LDA temp3
+    STA GenericSoundPitch1
+    ADC #$10
+    STA GenericSoundPitch2
+    ADC #$10
+    STA GenericSoundPitch3
     
-    LDA #$80
+    LDX #GenericSound1 MOD 256 
+    LDY #GenericSound1 DIV 256 
+    JSR PlaySound
+    LDX #GenericSound2 MOD 256 
+    LDY #GenericSound2 DIV 256 
+    JSR PlaySound
+    LDX #GenericSound3 MOD 256 
+    LDY #GenericSound3 DIV 256 
+    JSR PlaySound
+
+    LDA #$01
     JSR vsync_delay
+
+    LDA temp3
+    ADC #$08
+    STA temp3
+    LDA temp3
+    CMP #$40
+    BCC loop2
+
+    DEC temp2
+    BNE loop1 
 
     JMP TitleScreen
     ; Return
@@ -855,18 +974,31 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
  
     LDA #26        
     STA currentYPosition
+
+    ; Cascade Sound
+    LDX #CascadeSound1 MOD 256
+    LDY #CascadeSound1 DIV 256
+    JSR PlaySound
+    ; Cascade Sound
+    LDX #CascadeSound2 MOD 256
+    LDY #CascadeSound2 DIV 256
+    JSR PlaySound
+    ; Cascade Sound
+    LDX #CascadeSound3 MOD 256
+    LDY #CascadeSound3 DIV 256
+    JSR PlaySound
       
 .cascade_loop
     ; Wait for horizontal blank
     LDA #19     
     JSR OSBYTE
 
-    LDA #8                          ; 8 rows to a column
+    LDA #8                      ; 8 rows to a column
     STA temp2
 
     LDA #27 
     SEC
-    SBC currentYPosition                 ; 25-24 = 1, then 25-23 = 2... etc
+    SBC currentYPosition        ; 25-24 = 1, then 25-23 = 2... etc
     STA temp3
 
 .animate
@@ -938,7 +1070,7 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
 {   
     JSR GetScreenAddress
  
-    LDX #19 ; number of columns
+    LDX #9      ;#18 ; number of columns
     
 .pixel_loop
     LDA chrFontColour
@@ -947,9 +1079,13 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     LDY #8  :STA (write_addr),Y
     LDY #16 :STA (write_addr),Y
     LDY #24 :STA (write_addr),Y
+    LDY #32 :STA (write_addr),Y
+    LDY #40 :STA (write_addr),Y
+    LDY #48 :STA (write_addr),Y
+    LDY #56 :STA (write_addr),Y
     
 	LDA	write_addr
-	ADC	#32
+	ADC	#64
 	STA	write_addr
 	BCC	samehiaddr
 	INC	write_addr + 1
@@ -976,13 +1112,13 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     LDA #WHITE
     STA chrFontColour
 
-    LDX #3
+    LDX #2
     LDY #14
     LDA #EnterZoneBlank MOD 256: STA text_addr
     LDA #EnterZoneBlank DIV 256: STA text_addr+1
     JSR PrintString
 
-    LDX #3
+    LDX #2
     LDY #15
     LDA #EnterZoneText MOD 256: STA text_addr
     LDA #EnterZoneText DIV 256: STA text_addr+1
@@ -995,30 +1131,46 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     LDA selectedLevel
     JSR BCDtoScreen
 
-    LDX #3
+    LDX #2
     LDY #16
     LDA #EnterZoneBlank MOD 256: STA text_addr
     LDA #EnterZoneBlank DIV 256: STA text_addr+1
     JSR PrintString
 
-    ; Fast grid animation
-    LDA #$01
-    STA gridFrameRate
-    STA gridFrameRateMax
+    LDA #0
+    STA temp2
 
-    LDA #$FF
+    LDA #80;#$FF
     STA delay_counter2
 
 .gridloop
     JSR AnimateGrid
+
+    LDA temp2
+    STA EnterZoneSound1Pitch
+    STA EnterZoneSound2Pitch
+    STA EnterZoneSound3Pitch
+    LDX #EnterZoneSound1 MOD 256 
+    LDY #EnterZoneSound1 DIV 256 
+    JSR PlaySound
+    LDX #EnterZoneSound2 MOD 256 
+    LDY #EnterZoneSound2 DIV 256 
+    JSR PlaySound
+    LDX #EnterZoneSound3 MOD 256 
+    LDY #EnterZoneSound3 DIV 256 
+    JSR PlaySound
+    INC temp2
+
     LDA #$01
     JSR vsync_delay
+
     DEC delay_counter2
     BNE gridloop
 
     ; Remove Enter zone
     JSR DrawGridOverEnterZone
 
+    ; Slow down grid animation
     LDA #$02
     STA gridFrameRate
     STA gridFrameRateMax
@@ -1035,35 +1187,49 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
 ;-------------------------------------------------------------------------
 .InitialiseLevel
 {
-    LDX selectedLevel
+    LDA selectedLevel
+    JSR DecimalToHex
+    TAX
+    DEX
 
+    ; Init Grid Character
     LDA GridLevel,X
     STA gridCharacter
 
+    ; Init Droids
     LDA noOfDroidSquadsForLevel,X
     STA droidsLeftToKill
+    STA InitialDroidsInSquad
 
     LDA sizeOfDroidSquadsForLevels,X
     STA sizeOfDroidSquadForLevel
 
+    ; Init Lasers
     LDA laserFrameRateForLevel,X
     STA laserFrameRate
 
-    LDA noOfCameloidsForLevel,X
-    STA cameloidsLeft
+    ; Init Snitch
+    LDA snitchSpeedForLevel,X
+    STA snitchFrameRate
+    STA snitchFrameRateLevel
 
-    LDA noOfCameloidsTimerLevel,X
-    STA cameloidsTimerReset
-    STA cameloidsTimer
-
+    ; Init Deflexors
     LDA deflexorIndexArrayForLevel,X
     STA deflexorIndexForLevel
 
-    LDA cameloidSpeedForLevel,X
-    STA currentCameloidAnimationInterval
-    STA cameloidAnimationInteveralForLevel    
+    ; Init Cameloids
+    LDA CameloidsLevelArray,X
+    STA CameloidsLeftToKill
 
-; Init Ship
+    LDA CameloidsOnScreenArray,X
+    STA InitialCameloidsOnScreen
+    STA CurrentCameloidsOnScreen 
+
+    LDA CameloidsRefreshRateArray,X
+    STA InitialCameloidsRefreshRate   
+    STA CurrentCameloidsRefreshRate    
+    
+    ; Init Ship
     LDA #SHIP_FRAME_RATE
     STA shipAnimationFrameRate
 
@@ -1071,13 +1237,7 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     STA droidFrameRate
 
     LDA #BULLET_FRAME_RATE
-    STA bulletAndLaserFrameRate
-
-    ; Init Snitch
-    
-    LDA snitchSpeedForLevel,X
-    STA snitchFrameRate
-    STA snitchFrameRateLevel
+    STA bulletAndLaserFrameRate  
     
     LDA #4
     STA snitchXPosition
@@ -1101,77 +1261,32 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     STA snitchControl
     STA droidParts
     STA noOfDroidSquadsCurrentLevel
+    STA currentCameloidsLeft
+    STA mysteryBonusEarned
     
     LDA #LEADER1
     STA currentDroidCharacter
     
     LDA #$01
+    STA gridFrameRate
     STA gridFrameRateMax
     STA droidTimer
 
-    ;LDA sizeOfDroidSquadForLevel
-    ;STA sizeOfDroidSquadForLevel
-    
-    ;LDA droidsLeftToKill 
-    ;STA droidsLeftToKill
+    ; Mystery Bonus 3
+    LDA #$04
+    STA bonusBits
 
-    
-    LDX deflexorIndexForLevel
-    STX currentDeflexorIndex
+    LDA #0
+    STA backColour
+    LDA #4
+    STA foreColour
+    JSR AnimateGrid
 
-.deflexor_loop   
-    LDA deflexorXPosArrays,X
-    STA currentDeflexorXPosArray,X
-    LDA deflexorYPosArrays,X
-    STA currentDeflexorYPosArray,X
-    LDA deflexorStatusArray,X
-    STA currentDeflexorStatusArray,X
-    DEX 
-    BPL deflexor_loop
-    
     JSR ClearPodArray
     JSR ClearDroidArray
+    JSR InitDeflexorArray
 
     RTS
-}
-
-;-------------------------------------------------------------------------
-; DrawNewLevel
-;-------------------------------------------------------------------------
-; On entry  :
-; On exit   : 
-;-------------------------------------------------------------------------
-.DrawNewLevelScreen
-{
-    JSR ClearScreen
-    JSR DrawGrid
-
-    LDX #3
-    LDY #14
-    LDA #EnterZoneBlank MOD 256: STA text_addr
-    LDA #EnterZoneBlank DIV 256: STA text_addr+1
-    JSR PrintString
-
-    LDX #3
-    LDY #15
-    LDA #EnterZoneText MOD 256: STA text_addr
-    LDA #EnterZoneText DIV 256: STA text_addr+1
-    JSR PrintString
-
-    LDX #15
-    LDY #15
-    LDA selectedLevel
-    JSR BCDtoScreen
-
-    LDX #3
-    LDY #16
-    LDA #EnterZoneBlank MOD 256: STA text_addr
-    LDA #EnterZoneBlank DIV 256: STA text_addr+1
-    JSR PrintString
-
-    JMP MaterializeShip
-    ; Return
-    ;RTS
 }
 
 ;-------------------------------------------------------------------------
@@ -1182,22 +1297,23 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
 ;-------------------------------------------------------------------------
 .DrawGrid
 {
-    ; Draw Grid section
     LDA gridCharacter 
     STA currentCharacter
 
     LDY #GRID_MIN_Y
+
 .draw_vertical_line_loop2    
     STY currentYPosition
-    LDX #GRID_MIN_X;#1
+    LDX #GRID_MIN_X
+
 .draw_horizontal_line_loop2
     STX currentXPosition
     JSR PlotCharSprite
     INX
-    CPX #GRID_MAX_X+1;#MAX_X
+    CPX #GRID_MAX_X+1
     BNE draw_horizontal_line_loop2
     INY
-    CPY #GRID_MAX_Y;#MAX_Y
+    CPY #GRID_MAX_Y
     BNE draw_vertical_line_loop2
     RTS
 }
@@ -1217,7 +1333,7 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     LDY #14
 .draw_vertical_line_loop2    
     STY currentYPosition
-    LDX #3
+    LDX #2
 .draw_horizontal_line_loop2
     STX currentXPosition
     JSR PlotCharSprite
@@ -1233,7 +1349,7 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
 ;-------------------------------------------------------------------------
 ; AnimateGrid
 ;-------------------------------------------------------------------------
-; On entry  :
+; On entry  : X = background colour, Y = foreground colour
 ; On exit   : 
 ;-------------------------------------------------------------------------
 .AnimateGrid
@@ -1247,13 +1363,13 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     LDX gridOldColour
     JSR Incdelay_counter1
     STX gridOldColour
-    LDY #0
+    LDY backColour
     JSR DefineColour
 
     LDX gridNewColour
     JSR Incdelay_counter1
     STX gridNewColour
-    LDY #4
+    LDY foreColour                 
     JSR DefineColour
 
 .AnimateGridExit
@@ -1279,7 +1395,6 @@ EQUS " SECTORS OR BE BLASTERED TO ALIEN HELL......", $FF
     JMP DefineColour
 }
 
-
 ;-------------------------------------------------------------------------
 ; Incdelay_counter1
 ;-------------------------------------------------------------------------
@@ -1304,7 +1419,8 @@ include "droids.asm"
 include "deflexors.asm"
 include "cameloids.asm"
 include "highscore.asm"
-include "debug.asm"
+include "mysterybonus.asm"
+;include "debug.asm"
 
 ;-------------------------------------------------------------------------
 ; AddScore100's
@@ -1335,6 +1451,7 @@ include "debug.asm"
 
     LDA score2
     ADC #$00
+
 .^AddScore100s      ; Global label - called from AddScore100    
     STA score2
 
@@ -1367,15 +1484,16 @@ include "debug.asm"
 }
 
 ;-------------------------------------------------------------------------
-; CalcXYCharAddress
+; ConvertCharToPixel
 ;-------------------------------------------------------------------------
-; 8x8 Character based address calculation only
+; Convert character based position to pixel based position
 ;-------------------------------------------------------------------------
-; On entry  : currentXPos = 0-20, currentYPos = 0-31
-; On exit   : A is underfined
+; On entry  : currentXPosition = 0-19, currentYPosition = 0-31
+; On exit   : XOrd = 0-79, YOrd = 0-255
+;           : A is underfined
 ;           : X and Y are preserved
 ;-------------------------------------------------------------------------
-.CalcXYCharAddress
+.ConvertCharToPixel
 {
     LDA currentXPosition
     ASL A
@@ -1387,7 +1505,21 @@ include "debug.asm"
     ASL A
     ASL A
     STA YOrd
-    
+    RTS
+}
+
+;-------------------------------------------------------------------------
+; CalcXYCharAddress
+;-------------------------------------------------------------------------
+; 8x8 Character based address calculation only
+;-------------------------------------------------------------------------
+; On entry  : currentXPosition = 0-19, currentYPosition = 0-31
+; On exit   : A is underfined
+;           : X and Y are preserved
+;-------------------------------------------------------------------------
+.CalcXYCharAddress
+{
+    JSR ConvertCharToPixel
     JMP GetScreenAddress
 }
 
@@ -1396,11 +1528,10 @@ include "debug.asm"
 ;-------------------------------------------------------------------------
 ; 8x8 Character based address calculation only
 ;-------------------------------------------------------------------------
-; On entry  : XOrd = 0-79, yOrd = 0-255
+; On entry  : XOrd = 0-79, YOrd = 0-255
 ; On exit   : A is underfined
 ;           : X and Y are preserved
 ;-------------------------------------------------------------------------
-
 .GetScreenAddress
 {
     TYA
@@ -1449,33 +1580,22 @@ include "debug.asm"
 ;-------------------------------------------------------------------------
 ; This plots an 8x8 sprite at character position X,Y
 ;-------------------------------------------------------------------------
-; On entry  :
+; On entry  : currentXPosition = 0-19, currentYPosition = 0-31
 ; On exit   : A is underfined
 ;           : X and Y are preserved
 ;-------------------------------------------------------------------------
 .PlotCharSprite
 {
-    LDA currentXPosition
-    ASL A
-    ASL A
-    STA XOrd
-
-    LDA currentYPosition
-    ASL A
-    ASL A
-    ASL A
-    STA YOrd
-
+    JSR ConvertCharToPixel
     JMP PlotSprite
 }
-
 
 ;-------------------------------------------------------------------------
 ; PlotSprite
 ;-------------------------------------------------------------------------
-; This plots an 8x8 sprite at screen coords X,Y
+; This plots an 8x8 sprite at screen coords XOrd,YOrd
 ;-------------------------------------------------------------------------
-; On entry  :
+; On entry  : XOrd and YOrd contain the screen coords
 ; On exit   : A is underfined
 ;           : X and Y are preserved
 ;-------------------------------------------------------------------------
@@ -1499,130 +1619,74 @@ include "debug.asm"
     LDX #31                                 ; game sprites are always 8x8 (Mode 2 are 4 bits * 8 bits => 0-31)
 .sprite_read    
     LDA $FFFF,X
-    ;BEQ ignore_black
-
+ 
 .sprite_write    
     STA $FFFF,X
 
-;.ignore_black    
     DEX
     BPL sprite_read
+
     PLA
     TAX
     RTS
 }
 
+
 ;-------------------------------------------------------------------------
-; PlotSpriteEOR
+; PlotCharSpriteNoBlack
 ;-------------------------------------------------------------------------
-; This plots an 8x8 sprite at screen coords X,Y
+; This plots an 8x8 sprite at character position X,Y
 ;-------------------------------------------------------------------------
-; On entry  :
+; On entry  : currentXPosition = 0-19, currentYPosition = 0-31
 ; On exit   : A is underfined
 ;           : X and Y are preserved
 ;-------------------------------------------------------------------------
-;.PlotSpriteEOR
-;{
-;    STX saveX
-;    STY saveY
-   
-;    LDA width
-;    LSR A
-;    STA width
+.PlotCharSpriteNoBlack
+{
+    JSR ConvertCharToPixel
+    JMP PlotSpriteNoBlack
+}
 
-;    LDA currentCharacter
-;    ASL A   ; A = A * 2 (2 bytes for address)
-;    TAX
-;    LDA sprlist,X: STA sprite_read+1
-;    LDA sprlist+1,X: STA sprite_read+2
+;-------------------------------------------------------------------------
+; PlotSpriteNoBlack
+;-------------------------------------------------------------------------
+; This plots an 8x8 sprite at screen coords XOrd,YOrd
+;-------------------------------------------------------------------------
+; On entry  : XOrd and YOrd contain the screen coords
+; On exit   : A is underfined
+;           : X and Y are preserved
+;-------------------------------------------------------------------------
+.PlotSpriteNoBlack
+{
+    TXA
+    PHA
 
-;    LDA currentXPosition
-;    sta XOrd
-  
-;    LDA currentYPosition
-;    sec
-;    sbc #1
-;    clc
-;    adc height  ; but only to nearest character row start
-;    sta YOrd
-;    and #7     ; put low order bits in X  for index addressing
-;    tax     
-;    sta XStartOffset ; preserve this for use later
-;    lda YOrd      ; then store the other bits 3-7 in YOrd to get screen address of nearest character start row
-;    and #248
-;    sta YOrd
-;    ;jsr ScreenStartAddress  
-;    JSR GetScreenAddress ;CalcXYAddress               
-;    ; now we've got the screen start address, and address of alien, lets plot it
-;    lda write_addr ; put address in code below
-;    sta sprite_write+1     
-;    ;STA sprite_eor+1 
-;    lda write_addr+1        
-;    sta sprite_write+2
-;    ;STA sprite_eor+2     
-;    clc
-   
-;.PlotXLoop
-;     ldy height 
-;     dey  
-;.PlotLoop   
-;.sprite_read
-;    lda $FFFF,Y     ;dummy address, will be filled in by code
-;;.sprite_eor
-;;    EOR $FFFF,X     ; dummy address, will be filled in by code
-;.sprite_write
-;    sta $FFFF,X     ; dummy address, will be filled in by code
-;    ; are we at a boundary
-;    dex                  
-;    bpl NotAtRowBoundary   ;   no, so carry on
-;    ;yes we moved to another character row, so we really want this to be the start of next screen row
-;    sec                     ; we do this by adding &279 to value to get to next row
-;    lda sprite_write+1
-;    sbc #$80                   ; Offset is $01C0 for 28 character mode
-;    ;SBC #LO(charRow)
-;    sta sprite_write+1  
-;    ;STA sprite_eor+1
-;    lda sprite_write+2
-;    sbc #2
-;    ;SBC #HI(charRow)
-;    sta sprite_write+2
-;    ;STA sprite_eor+2   
-;    ldx #7 ; reset X to 7 (bottom of this character row)
+    JSR GetScreenAddress                   ; Screen address is stored in write_addr
 
-;.NotAtRowBoundary
-;    dey
-;    bpl PlotLoop    ; have we finished a full column, go to plot loop if not
-;    dec width
-;    beq EndPlotSprite   ; no more to plot, exit routine
-;    ; move to next column
-;    clc
-;    lda sprite_read+1
-;    adc height
-;    sta sprite_read+1
-;    lda sprite_read+2
-;    adc #0  
-;    sta sprite_read+2      
-;    lda write_addr
-;    clc
-;    adc #8
-;    sta write_addr
-;    sta sprite_write+1  
-;    ;STA sprite_eor+1
-;    lda write_addr+1
-;    adc #0                     
-;    sta write_addr+1
-;    sta sprite_write+2
-;    ;STA sprite_eor+2 
-;    ldx XStartOffset  
-;    jmp PlotXLoop ;never zero so always branches
+    LDA write_addr:STA sprite_write+1
+    LDA write_addr+1:STA sprite_write+2
 
-;.EndPlotSprite
- 
-;    LDY saveY
-;    LDX saveX
-;    rts
-; }
+    LDA currentCharacter
+    ASL A                                   ; A = A * 2 (2 bytes for address)
+    
+    TAX
+    LDA sprlist,X: STA sprite_read+1
+    LDA sprlist+1,X: STA sprite_read+2
 
+    LDX #31                                 ; game sprites are always 8x8 (Mode 2 are 4 bits * 8 bits => 0-31)
+.sprite_read    
+    LDA $FFFF,X
+    BEQ ignore_black
+.sprite_write    
+    STA $FFFF,X
+.ignore_black
+    DEX
+    BPL sprite_read
+
+    PLA
+    TAX
+    RTS
+}
 ;-------------------------------------------------------------------------
 ; GetChar
 ;-------------------------------------------------------------------------
@@ -1630,7 +1694,7 @@ include "debug.asm"
 ;-------------------------------------------------------------------------
 ; On entry  :
 ; On exit   : A contains sprite character index
-;           : X may contain index into pod array
+;           : X may contain index into pod, droid or deflexor array
 ;-------------------------------------------------------------------------
 .getChar 
 {
@@ -1649,6 +1713,10 @@ include "debug.asm"
     JSR FindDeflexor
     CMP gridCharacter
     BNE found           ; Found Deflexor
+
+    JSR FindCameloid
+    CMP gridCharacter
+    BNE found
 
     ; A contains gridCharacter
 
@@ -1738,25 +1806,52 @@ include "debug.asm"
 .*BCDtoScreenOneChar    ; Global label    
     AND #$0F
 .onedigit    
-    ;ORA #48
-    ;JMP OSWRCH
     TAX
     JMP PrintChar
 }
 
-\\ returns rand in A C=? X=X Y=Y \\ period 256 seed any, this is what I currently use.
-.Rand 
+;-------------------------------------------------------------------------
+; DecimalToHex
+;-------------------------------------------------------------------------
+; On entry  : A contains decimal value
+; On exit   : A contains hex value
+;           : X and Y are preserved
+;-------------------------------------------------------------------------
+.DecimalToHex
 {
-	lda selectedLevel ; 3
-	asl a         ; 2
-	asl a         ; 2
-	clc           ; 2
-	adc selectedLevel ; 3
-	clc           ; 2
-	adc #&45      ; 2
-	sta selectedLevel ; 3
-;	EOR &FE44
-	rts           ; [b]19c 12b[/b] + rts
+    PHA
+	AND	#$F0	; Isolate the tens digit.
+	STA	temp
+	PLA
+	AND	#$0F	; isolate the units digit.
+	LSR	temp	; tens digit is now x8
+	CLC
+	ADC	temp	; Add it in to the binary total.
+	LSR	temp	; tens digit is now x4
+	LSR	temp	; tens digit is now x2
+	CLC
+	ADC	temp	; Result is now in A.
+	RTS
+}
+
+;-------------------------------------------------------------------------
+; RandomNumber
+;-------------------------------------------------------------------------
+; On entry  : variable random is the seed
+; On exit   : A contains random number
+;           : X and Y are preserved
+;-------------------------------------------------------------------------
+.RandomNumber 
+{
+	LDA random 
+	ASL A         
+	ASL A         
+	CLC           
+	ADC random
+	CLC           
+	ADC #&45      
+	STA random 
+	RTS
 }
 
 ;-------------------------------------------------------------------------
@@ -1949,7 +2044,7 @@ include "debug.asm"
     LDA #&80
     JSR OSBYTE
     TXA
-    LSR A
+    LSR A 
     RTS
 }
 
@@ -2020,6 +2115,78 @@ include "debug.asm"
     STY currentYPosition
     JMP CalcXYCharAddress 
 }
+
+;-------------------------------------------------------------------------
+; PlotFont
+;-------------------------------------------------------------------------
+; On entry  : currentXPos, currentYPos, currentCharacter
+; On exit   : X is preserved
+;-------------------------------------------------------------------------
+
+.PlotFont
+{
+    TXA
+    PHA
+    
+    JSR CalcXYCharAddress
+    
+    LDX currentCharacter
+    JSR PrintChar
+
+    PLA
+    TAX
+    RTS
+}
+
+
+;-------------------------------------------------------------------------
+; AnimatedHighScore
+;-------------------------------------------------------------------------
+; On entry  : 
+; On exit   : 
+;-------------------------------------------------------------------------
+.AnimatedHighScore
+{
+    LDA #WHITE
+    STA chrFontColour
+    LDX #06
+    LDY #16
+    LDA #WellDoneText MOD 256:sta text_addr
+    LDA #WellDoneText DIV 256:sta text_addr+1
+    JSR PrintString
+
+    LDX #4
+    LDY #18
+    LDA #NewHighscoreText MOD 256:sta text_addr
+    LDA #NewHighscoreText DIV 256:sta text_addr+1
+
+    STX currentXPosition
+    STY currentYPosition
+
+    JSR CalcXYCharAddress   ; Screen address is stored in write_addr
+
+    LDY #0
+.loop
+
+    LDA chrFontColourIndex
+    AND #$07
+    TAX
+    STX chrFontColourIndex
+    LDA CascadeEffects, X
+    STA chrFontColour
+    
+    LDA (text_addr),Y
+    BMI finished
+    TAX
+    JSR PrintChar
+    INC chrFontColourIndex
+    INY
+    BNE loop
+.finished  
+    
+    RTS   
+}
+
 
 ;-------------------------------------------------------------------------
 ; PrintString
@@ -2115,35 +2282,13 @@ include "debug.asm"
     STA write_addr
     BCC finish1
     ; Advance to next line position
-    INC write_addr+1
+    INC write_addr + 1
 
 .finish1
     
     LDY saveY
     RTS
 }
-
-;-------------------------------------------------------------------------
-; PlotFont
-;-------------------------------------------------------------------------
-; On entry  : currentXPos, currentYPos, currentCharacter
-; On exit   : X is preserved
-;-------------------------------------------------------------------------
-
-;.PlotFont
-;{
-;    TXA
-;    PHA
-    
-;    JSR CalcXYCharAddress
-    
-;    LDX currentCharacter
-;    JSR PrintChar
-
-;    PLA
-;    TAX
-;    RTS
-;}
 
 ;-------------------------------------------------------------------------
 ; PlaySound
@@ -2230,10 +2375,10 @@ EQUS "SELECT LEVEL",$FF
 EQUS "HIGHSCORE", $FF
 
 .EnterZoneBlank
-EQUS "               ",$FF
+EQUS "                ",$FF
 
 .EnterZoneText
-EQUS " ENTER ZONE    ",$FF
+EQUS " ENTER ZONE     ",$FF
 
 .GotYouText
 EQUS "GOT YOU!", $FF
@@ -2242,7 +2387,13 @@ EQUS "GOT YOU!", $FF
 EQUS "ZONE CLEARED", $FF
 
 .GameOverText
-EQUS "GAME  OVER", $FF
+EQUS "GAME OVER", $FF
+
+.WellDoneText
+EQUS "WELL DONE",$FF
+
+.NewHighscoreText
+EQUS "NEW HIGHSCORE ",$FF
 
 ; Standard Mode 2 (20x32) character lookup table
 .LookUp640
@@ -2259,9 +2410,11 @@ EQUB $00, $55, $AA, $FF
 .ColourEffects
 EQUB BLACK, BLUE, RED, MAGENTA, GREEN, CYAN, YELLOW, WHITE
 
+; Used for cascading line (reverse order)
 .CascadeEffects
-EQUB RED, MAGENTA, GREEN, CYAN, YELLOW, WHITE, BLUE
+EQUB RED, MAGENTA, GREEN, CYAN, YELLOW, WHITE, BLUE, BLACK
 
+; 00 blank, 01 grid, 02 dots
 .GridLevel
 EQUB $01,$01,$01,$00,$01
 EQUB $01,$02,$00,$00,$01
@@ -2275,12 +2428,18 @@ EQUB $02,$01,$00,$02,$02
 ; pitch    2 bytes
 ; duration 2 bytes
 
-.FireBulletSound
+.FireBulletSound1
 EQUW &11
 EQUW 1
-EQUW 150
-EQUW 5
-EQUW 2
+EQUW 0
+EQUW 10
+
+; SOUND &10,-15,7,10
+.FireBulletSound2
+EQUW &10
+EQUW &FFF1
+EQUW 7
+EQUW 10
 
 .ExplosionSound
 EQUW 0
@@ -2289,7 +2448,7 @@ EQUW 5
 EQUW 10
 
 .ShipExplosionSound
-EQUW 0
+EQUW &10
 EQUW 3
 EQUW 6
 EQUW 40
@@ -2298,7 +2457,7 @@ EQUW 40
 EQUW &12
 EQUW 4
 EQUW 100
-EQUS 2
+EQUW 2
 
 .LevelSelectSound
 EQUW &11
@@ -2306,8 +2465,91 @@ EQUW 4
 EQUW 25
 EQUW 50
 
+.CascadeSound1
+EQUW &11
+EQUW 5
+EQUW 0
+EQUW 50
+
+.CascadeSound2
+EQUW &12
+EQUW 5
+EQUW 1
+EQUW 50
+
+.CascadeSound3
+EQUW &13
+EQUW 5
+EQUW 2
+EQUW 50
+
+.EnterZoneSound1
+EQUW &11
+EQUW 7
+.EnterZoneSound1Pitch
+EQUW 0
+EQUW 1
+
+.EnterZoneSound2
+EQUW &12
+EQUW 7
+.EnterZoneSound2Pitch
+EQUW 0
+EQUW 2
+
+.EnterZoneSound3
+EQUW &13
+EQUW 7
+.EnterZoneSound3Pitch
+EQUW 0
+EQUW 1
+
+.ZoneClearedSound1
+EQUW &201
+EQUW 7
+.ZoneClearedSound1Pitch
+EQUW 0
+EQUW 1
+
+.ZoneClearedSound2
+EQUW &202
+EQUW 7
+.ZoneClearedSound2Pitch
+EQUW 0
+EQUW 1
+
+.ZoneClearedSound3
+EQUW &203
+EQUW 7
+.ZoneClearedSound3Pitch
+EQUW 0
+EQUW 1
+
+.GenericSound1
+EQUW &11
+EQUW &FFF1
+.GenericSoundPitch1
+EQUW 0
+EQUW 1
+
+.GenericSound2
+EQUW &12
+EQUW &FFF1
+.GenericSoundPitch2
+EQUW 0
+EQUW 1
+
+.GenericSound3
+EQUW &13
+EQUW &FFF1
+.GenericSoundPitch3
+EQUW 0
+EQUW 1
+
 .font_data
 INCLUDE "Fonts.asm"
+
+.end_of_Fontdata
 
 .sprite_data
 INCBIN "SpriteData.bin"
@@ -2334,49 +2576,79 @@ EQUW sprite_data + $220     ; Pod4
 EQUW sprite_data + $240     ; Pod5
 EQUW sprite_data + $260     ; Pod6
 EQUW sprite_data + $280     ; Bomb Down
-EQUW sprite_data + $2A0     ; Explosion1
-EQUW sprite_data + $2C0     ; Explosion2
-EQUW sprite_data + $2E0     ; Explosion3
-EQUW sprite_data + $300     ; Leader1
-EQUW sprite_data + $320     ; Leader2
-EQUW sprite_data + $340     ; Leader3
-EQUW sprite_data + $360     ; Leader4
+EQUW sprite_data + $2A0     ; Leader1
+EQUW sprite_data + $2C0     ; Leader1
+EQUW sprite_data + $2E0     ; Leader2
+EQUW sprite_data + $300     ; Leader4
+EQUW sprite_data + $320     ; Droid Segment
+EQUW sprite_data + $340     ; Snitch_Right1
+EQUW sprite_data + $360     ; Snitch_Right2
+EQUW sprite_data + $380     ; Snitch_Left1
+EQUW sprite_data + $3A0     ; Snitch_Left2
+EQUW sprite_data + $3C0     ; Snitch_Wave1
+EQUW sprite_data + $3E0     ; Snitch_Wave2
+EQUW sprite_data + $400     ; Camel_Right
+EQUW sprite_data + $420     ; Camel_Left
+EQUW sprite_data + $440     ; Deflector1
+EQUW sprite_data + $460     ; Deflector2
+EQUW sprite_data + $480     ; Deflector3
+EQUW sprite_data + $4A0     ; Bonus1
+EQUW sprite_data + $4C0     ; Bonus2
+EQUW sprite_data + $4E0     ; Half_Left
+EQUW sprite_data + $500     ; Half_Right
+EQUW sprite_data + $520     ; Mystery
 
-EQUW sprite_data + $380     ; Droid
-EQUW sprite_data + $3A0     ; Snitch_Right1
-EQUW sprite_data + $3C0     ; Snitch_Right2
-EQUW sprite_data + $3E0     ; Snitch_Left1
-EQUW sprite_data + $400     ; Snitch_Left2
-EQUW sprite_data + $420     ; Snitch_Wave1
-EQUW sprite_data + $440     ; Snitch_Wave2
+EQUW sprite_data + $540     ; SoundOn
+EQUW sprite_data + $560     ; SoundOff
+EQUW sprite_data + $580     ; Pause
+EQUW sprite_data + $5A0     ; Joystick
 
-EQUW sprite_data + $460     ; SoundON
-EQUW sprite_data + $480     ; SoundOff
-EQUW sprite_data + $4A0     ; Pause
-EQUW sprite_data + $4C0     ; Joystick
+.end_of_Spritedata
 
-EQUW sprite_data + $4E0     ; Camel_Right
-EQUW sprite_data + $500     ; Camel_left
-EQUW sprite_data + $520     ; Deflector1
-EQUW sprite_data + $540     ; Deflector2
-EQUW sprite_data + $560     ; Deflector3
-EQUW sprite_data + $580     ; Bonus1
-EQUW sprite_data + $5A0     ; Bonus2
+.END
+
+ALIGN &100
+.RELOC_START
+{
+    LDA #$8C
+    LDX #$00
+    LDY #$00
+    JSR OSBYTE      ; Select cassette file system and set speed
+
+    LDX #HI(RELOC_START-START)
+	LDY #0
+
+.relocloop
+	LDA RELOAD_ADDR,Y
+	STA NATIVE_ADDR,Y
+	INY
+	BNE relocloop
+	INC relocloop+OFFSET+2		; PATCHED ADDRESS
+	INC relocloop+OFFSET+5		; PATCHED ADDRESS
+	DEX
+	BNE relocloop
+	
+	JMP START
+}
 
 \ ******************************************************************
 \ *	End address to be saved
 \ ******************************************************************
-.end
+.RELOC_END
 
 \ ******************************************************************
 \ *	Save the code
 \ ******************************************************************
-
-PRINT "End of ZP", ~end_of_ZP, "Bytes Used", ~(end-start), "Bytes Left", ~(&3000-end)
-
-SAVE "MATRIX", start, end
+PRINT
+PRINT "--------------------------------------------------"
+PRINT "End of ZP", ~end_of_ZP, ", Font Size", ~(end_of_Fontdata-font_data), ", Sprite Size", ~(end_of_Spritedata-sprite_data) 
+PRINT "Bytes Used", ~(RELOC_END-START)
+PRINT "--------------------------------------------------"
+PRINT
+SAVE "MATRIX", START, RELOC_END, RELOC_START+OFFSET, RELOAD_ADDR
 puttext "BOOT", "!BOOT",&FFFF
 putbasic "Matrix.bas", "LOADER"
+
 
 \\ run command line with this
 \\ beebasm -v -i Matrix.asm -do Matrix.ssd -opt 3
