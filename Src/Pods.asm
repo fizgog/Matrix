@@ -98,6 +98,12 @@ EQUB    $EA,POD1,POD2,POD3,POD4,POD5,POD6,$FF
 
     JSR PlotCharSprite
 
+    ; Clear bonus bits for missing the opportunity to destroy the pod
+    ; left by a lazer.
+    LDA bonusBits
+    AND #$F7
+    STA bonusBits
+
 .pod_not_found   
     DEX
     BNE loop
