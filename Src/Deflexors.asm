@@ -17,29 +17,50 @@
 ; 20 levels - how many deflexors to draw
 .deflexorIndexArrayForLevel
 EQUB $00,$00,$00,$00,$03
-EQUB $00,$00,$0B,$00,$00
-EQUB $0F,$00,$00,$13,$00
-EQUB $00,$00,$1B,$00,$1B
+EQUB $00,$00,$09,$00,$00
+EQUB $0D,$00,$00,$11,$00
+EQUB $00,$00,$19,$00,$19
 
-; Max 28 Deflexors on screen at once 0 - 27
+; Max 26 Deflexors on screen at once 0 - 25
 ; 0F = / , 1F = \ , 2F = -
 .deflexorStatusArray
-EQUB $1F,$0F,$0F,$1F,$1F,$0F,$1F
-EQUB $0F,$0F,$1F,$0F,$1F,$2F,$2F
+EQUB $1F,$0F,$0F,$1F,$1F,$0F
+EQUB $1F,$0F,$1F,$0F,$2F,$2F
 EQUB $2F,$2F,$0F,$1F,$1F,$0F,$2F
 EQUB $2F,$2F,$2F,$2F,$2F,$2F,$2F
 
 .deflexorXPosArrays
-EQUB $0A,$0B,$0A,$0B,$01,$03,$05
-EQUB $07,$13,$11,$0F,$0D,$0A,$0B
-EQUB $06,$0E,$04,$04,$10,$10,$01
-EQUB $03,$05,$07,$13,$11,$0F,$0D
+EQUB $09,$0A,$09,$0A,$02,$04
+EQUB $06,$11,$0F,$0D,$09,$0A
+EQUB $06,$0D,$04,$04,$0F,$0F,$01
+EQUB $03,$05,$07,$12,$10,$0E,$0C
         
 .deflexorYPosArrays
-EQUB $10,$10,$11,$11,$07,$07,$07
-EQUB $07,$07,$07,$07,$07,$03,$03
-EQUB $03,$03,$0B,$12,$0B,$12,$05
-EQUB $05,$05,$05,$05,$05,$05,$05
+EQUB $13,$13,$14,$14,$0A,$0A
+EQUB $0A,$0A,$0A,$0A,$06,$06
+EQUB $06,$06,$14,$1C,$14,$1C,$08
+EQUB $08,$08,$08,$08,$08,$08,$08
+
+
+;---------------------------------------------------------------------------------
+; InitDeflexorArray
+;---------------------------------------------------------------------------------
+.InitDeflexorArray
+{
+    LDX deflexorIndexForLevel
+    STX currentDeflexorIndex
+
+.deflexor_loop   
+    LDA deflexorXPosArrays,X
+    STA currentDeflexorXPosArray,X
+    LDA deflexorYPosArrays,X
+    STA currentDeflexorYPosArray,X
+    LDA deflexorStatusArray,X
+    STA currentDeflexorStatusArray,X
+    DEX 
+    BPL deflexor_loop
+    RTS
+}
 
 ;---------------------------------------------------------------------------------
 ; DrawDeflexor 
@@ -61,11 +82,12 @@ EQUB $05,$05,$05,$05,$05,$05,$05
     TAY
 
     LDA #DEFLECTOR3                     ; 2F = - straight deflexor
+ 
     CPY #$20                            ; %00100000 
-    
     BEQ deflexor_found
 
     LDA #DEFLECTOR2                     ; 1F = \ left deflexor
+ 
     CPY #$10                            ; %00010000 ; 0F
     BEQ deflexor_found
     
@@ -73,7 +95,7 @@ EQUB $05,$05,$05,$05,$05,$05,$05
     
 .deflexor_found   
     STA currentCharacter
-    JSR PlotCharSprite
+    JSR PlotCharSpriteNoBlack
     DEX 
     BPL next_deflexor
     RTS 
@@ -96,12 +118,16 @@ EQUB $05,$05,$05,$05,$05,$05,$05
     CMP #$20                    ; %00010000 \
     BEQ deflexor_bullet_left
 
+    ; \ = 11
+    ; / = 21
+    ; - = 31
+
 .deflexor_bullet_right
     INC bulletXPosition
     INC currentXPosition
     LDA currentXPosition
 
-    CMP #GRID_MAX_X
+    CMP #GRID_MAX_X+1
     BEQ bullet_destroyed
 
 .not_hit_right
@@ -121,6 +147,7 @@ EQUB $05,$05,$05,$05,$05,$05,$05
     JMP draw_bullet 
 
 .deflexor_bullet_down
+    ;JSR Debug
     INC bulletYPosition
     INC currentYPosition
     LDA currentYPosition
