@@ -151,10 +151,6 @@
 ; On exit   : 
 ;-------------------------------------------------------------------------
 .DrawLaser{
-    ;LDA bulletAndLaserFrameRate
-    ;CMP #$05
-    ;BEQ start
-    ;RTS
     LDA laserShootInterval
     CMP #$FF
     BEQ start
@@ -194,7 +190,13 @@
     LDA shipXPosition
     CMP bottomLaserXPosition
     BEQ destroy_ship
-    
+
+    ; Mystery Bonus 4
+    ; Award a bonus bit for surviving a laser.
+    LDA bonusBits
+    ORA #$08
+    STA bonusBits
+
     ; Left laser fire
     LDA leftLaserYPosition
     STA currentYPosition
