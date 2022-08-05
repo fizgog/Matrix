@@ -18,7 +18,7 @@
 ; 08 - zigzag on / off 
 
 
-DROID_SIZE = $FF ; Using 1 page each for x, y and droid segment info
+DROID_SIZE = $55 
 DROID_EMPTY_SLOT = $FF
 
 ; Max 20 levels 
@@ -292,7 +292,9 @@ EQUB    $00,$0B,$0B,$0C,$0D
     STA droidXPositionArray,X
     LDA #DROID_MIN_Y
     STA droidYPositionArray,X
-    LDA #$00                            ; %00000000                            
+    LDA #$00                            ; %00000000   
+    ;JSR RandomNumber
+    ;AND #$01                         
     STA droidStatusArray,X
     DEC droidParts
     LDA droidParts
@@ -326,7 +328,9 @@ EQUB    $00,$0B,$0B,$0C,$0D
     STA droidXPositionArray,X
     LDA #DROID_MIN_Y
     STA droidYPositionArray,X
-    LDA #$41                        ; Head going right
+    JSR RandomNumber                    ; Randomise the droid start movement
+    AND #$03
+    ADC #$40                            ; Make sure it's the head piece
     STA droidStatusArray,X
     RTS   
 }
@@ -408,10 +412,21 @@ EQUB    $00,$0B,$0B,$0C,$0D
     STA currentXPosition
     LDA temp3
     STA currentYPosition
-    
+
+    LDA bulletType
+    AND #$30
+    BEQ no_mystery_bonus_8
+
+    ; Mystery Bonus 8
+    ; Get a bonus bit for hitting something with a deflected
+    ; bullet.
+    LDA bonusBits
+    ORA #$80
+    STA bonusBits
+
+.no_mystery_bonus_8    
     ; Remove bullet
-    ;LDA #$FF
-    ;STA bulletYPosition
+   
     LDA #$00
     STA bulletType
 
