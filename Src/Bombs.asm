@@ -83,7 +83,7 @@ BOMB_EMPTY_SLOT = $FF
     INC podArrayYPos,X
     LDA #BOMB_DOWN ;podArrayChar,X Should always be #BOMB_DOWN
     STA currentCharacter
-    JMP PlotCharSprite
+    JMP PlotCharSpriteNoBlack
     ; Return
 
 .remove_bomb
